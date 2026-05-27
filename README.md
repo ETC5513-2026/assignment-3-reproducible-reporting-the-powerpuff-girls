@@ -2,8 +2,8 @@
 
 Group Members:
 
-*
-*
-*
+* Noor Fatima Moolji
+* Miriam Wu
+* Pei Sin Ang
 
 Topic: 
