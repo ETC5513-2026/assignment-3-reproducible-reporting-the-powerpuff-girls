@@ -12,4 +12,136 @@ execute:
     warning: false
     message: false
 ---
+## Introduction 
+topic: Assessing Residential Safety in Victoria: A Property Crime Analysis by Police Region and LGA (2016–2025)
 
+## Methodology 
+
+```{r}
+# Read crime data in Vic
+library("readxl")
+
+vic_crime_raw <- read_excel(
+  "data/Data_Tables_LGA_Criminal_Incidents_Year_Ending_December_2025.xlsx",
+  sheet = "Table 02"
+)
+
+police_region_raw <- read_excel("data/Data_Tables_LGA_Criminal_Incidents_Year_Ending_December_2025.xlsx", 
+sheet = "Table 01") 
+```
+
+```{r}
+# Data cleaning
+library(tidyverse)
+# Clean table 01 to get police region ready for joining 
+police_region_clean <- police_region_raw |>
+  mutate(LGA = str_trim(`Local Government Area`)) |> # Remove white space from raw data
+  filter(!LGA %in% c("Total", "Unincorporated Vic",
+                     "Justice Institutions and Immigration Facilities")) |> # Remove rows with invalid LGA 
+  distinct(LGA, `Police Region`) |> 
+  rename(police_region = `Police Region`)
+
+# Clean table 02 
+vic_crime_clean <- vic_crime_raw |> 
+    mutate(Year = as.factor(Year),
+    incidents_recorded = as.integer(`Incidents Recorded`), 
+    LGA = str_trim(`Local Government Area`)) |>  # Remove white space from raw data
+    select(-`Incidents Recorded`, -`Year ending`, -`Local Government Area`, -`Police Service Area`) |> 
+    # Split the code and descriptions into two separate column
+    mutate(
+        division_code = as.factor(str_split_fixed(`Offence Division`, " ", 2)[, 1]),
+        division_desc = str_split_fixed(`Offence Division`, " ", 2)[, 2],
+        subdivision_code = as.factor(str_split_fixed(`Offence Subdivision`, " ", 2)[, 1]),
+        subdivision_desc = str_split_fixed(`Offence Subdivision`, " ", 2)[, 2],
+        subgroup_code = as.factor(str_split_fixed(`Offence Subgroup`, " ", 2)[, 1]),
+        subgroup_desc = str_split_fixed(`Offence Subgroup`, " ", 2)[, 2]
+    ) |> 
+    select(-`Offence Division`, -`Offence Subdivision`, -`Offence Subgroup`) |> 
+    rename(lga_rate_per_100_pop = `LGA Rate per 100,000 population`,
+    psa_rate_per_100k_pop = `PSA Rate per 100,000 population`)
+```
+
+```{r}
+# Join with police region, and remove all non-property related crime
+property_crime_vic <- vic_crime_clean |>
+  left_join(police_region_clean, by = "LGA") |>
+  filter(division_code == "B",
+        !subdivision_desc == "Deception", 
+        !str_detect(subgroup_desc, "Non-residential"),
+        !str_detect(subgroup_desc, "retail"),
+        !subgroup_code %in% c("B12", "B61", "B46", "B45", "B319")
+        )
+
+write_csv(property_crime_vic, "data/property_crime_vic.csv")
+```
+
+```{r}
+#| include: false
+# Sanity check
+property_crime_vic|> 
+    distinct(subgroup_code, subgroup_desc)
+```
+
+```{r}
+#| label: tbl-region-summary
+#| tbl-cap: "Number of LGAs by police region, Victoria"
+
+property_crime_vic |>
+  group_by(police_region) |>
+  summarise(n_lgas = n_distinct(LGA)) |>
+  knitr::kable(
+    col.names = c("Police Region", "Number of LGAs")
+  )
+```
+
+Use @tbl-tbl-region-summary to expand on what each police region represents geographically. 
+https://www.police.vic.gov.au/victoria-police-corporate-plan-2023-2024/about-victoria-police
+
+```{r}
+#| label: fig-incidents-offence
+#| fig-cap: "Property Crime Incidents by Offence Type (2016-2025)"
+
+property_crime_vic |>
+  group_by(Year, subdivision_desc) |>
+  summarise(total = sum(incidents_recorded),
+            .groups = "drop") |>
+  ggplot(aes(x = Year, y = total, fill = subdivision_desc)) +
+  geom_col(position = "stack") +
+  labs(title = "Property Crime Incidents by Offence Type (2016–2025)",
+       y = "Total Incidents", fill = "Offence Type") +
+  theme_minimal()
+```
+
+@fig-incidents-offence
+for methodology: can reference this and write about the 4 offence subdivision of property crime and the general trend over time
+Can also be used for results if needed 
+
+## Results
+
+Ideas: 
+can rank safest and least safe LGA - useful for conclusion
+also accidentally did this chart below, but not sure if it will be useful in results feel free to make edits. 
+```{r}
+#| label: fig-region-offence
+#| fig-cap: "Average LGA Property Crime Rate by Police Region and Offence Type (2025)"
+property_crime_vic |>
+  filter(Year == 2025) |>
+  group_by(LGA, police_region, subdivision_desc) |>
+  # sum within each LGAL: add up subgroup lga rate 
+  summarise(lga_subdivision_rate = sum(lga_rate_per_100_pop), .groups = "drop") |>
+  group_by(police_region, subdivision_desc) |>
+  # average across lgas within each police region
+  summarise(mean_rate = mean(lga_subdivision_rate), .groups = "drop") |>
+  ggplot(aes(x = police_region, y = mean_rate, fill = subdivision_desc)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Average LGA Property Crime Rate by Police Region and Offence Type (2025)",
+    x = "Police Region", y = "Mean Rate per 100,000 Population",
+    fill = "Offence Type"
+  ) +
+  theme_minimal() 
+```
+
+## References 
+(to be updated in reference.bib)
+crime data download - https://www.crimestatistics.vic.gov.au/crime-statistics/latest-crime-data-by-area
