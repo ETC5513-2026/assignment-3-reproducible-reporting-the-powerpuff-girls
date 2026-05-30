@@ -13,7 +13,17 @@ execute:
     message: false
 ---
 ## Introduction 
-topic: Assessing Residential Safety in Victoria: A Property Crime Analysis by Police Region and LGA (2016–2025)
+Residential safety is a key concern for communities, policymakers, and law enforcement agencies across Victoria. 
+
+Property crime which includes burglary, theft and more represent a direct threat to the security and wellbeing of residents. 
+
+Understanding the spatial distribution of property crime across Local Government Areas (LGAs) is essential for informing targeted crime prevention strategies. 
+
+Victoria is divided into four police regions, each encompassing a diverse range of urban, suburban, and rural LGAs with varying socioeconomic profiles.
+
+This report analyses residential property crime trends across Victorian LGAs from 2016 to 2025, using data sourced from Crime Statistics Agency Victoria. The analysis focuses on offence types directly relevant to residential safety, excluding commercial and white-collar crimes that do not reflect neighbourhood-level risk. 
+
+The report identifies the safest and least safe LGAs in Victoria as of 2025 and examines how crime rates vary across police regions. Findings are intended to support evidence-based decision-making by local governments and Victoria Police. 
 
 ## Methodology 
 
@@ -117,6 +127,38 @@ for methodology: can reference this and write about the 4 offence subdivision of
 Can also be used for results if needed 
 
 ## Results
+
+```{r}
+#| label: fig-lga-ranking
+#| fig-cap: "Top 10 Safest and Least Safe LGAs by Total Property Crime Rate per 100,000 Population (2025)"
+
+lga_total_rate_2025 <- property_crime_vic |>
+  filter(Year == 2025) |>
+  group_by(LGA, police_region) |>
+  summarise(total_rate = sum(lga_rate_per_100_pop), .groups = "drop")
+
+top10_unsafe <- lga_total_rate_2025 |> slice_max(total_rate, n = 10) |> mutate(rank = "Least Safe")
+top10_safe   <- lga_total_rate_2025 |> slice_min(total_rate, n = 10) |> mutate(rank = "Safest")
+
+bind_rows(top10_unsafe, top10_safe) |>
+  mutate(LGA = reorder(LGA, total_rate)) |>
+  ggplot(aes(x = LGA, y = total_rate, fill = rank)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(values = c("Least Safe" = "#d73027", "Safest" = "#4575b4")) +
+  labs(
+    x = "LGA", 
+    y = "Total Property Crime Rate per 100,000 Population",
+    fill = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+```
+
+The results reveal considerable variation in residential property crime rates across Victorian LGAs in 2025. As shown in @fig-lga-ranking, the ten least safe LGAs recorded substantially higher total property crime rates per 100,000 population compared to the ten safest LGAs. Melbourne had the highest rate at approximately 8,500 incidents per 100,000 population, which is consistent with its status as a high-density urban centre. 
+
+Notably, the ten safest LGAs were predominantly rural and regional areas, with Queenscliffe recording the lowest rate. This urban-rural divide suggests that population density and urbanisation may be key drivers of residential property crime risk in Victoria, and highlights the importance of targeted policy responses at the local government level.
 
 Ideas: 
 can rank safest and least safe LGA - useful for conclusion
